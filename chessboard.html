@@ -6,62 +6,45 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
         <style>
             body { 
-                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-                display: flex; 
-                flex-direction: column; 
-                align-items: center; 
-                background-color: #f8f9fa;
-                padding-bottom: 50px;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                display: flex; flex-direction: column; align-items: center; 
+                background-color: #f0f2f5; padding: 20px;
             }
-            #board { width: 400px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-            #status { margin-top: 20px; margin-bottom: 10px; font-weight: bold; font-size: 1.2em; color: #333; }
-            .controls { margin-top: 10px; display: flex; gap: 10px; }
-            
+            #board { width: 400px; margin-bottom: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; }
+            #status { margin-bottom: 15px; font-weight: bold; font-size: 1.1em; color: #1a1a1a; background: #fff; padding: 5px 15px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+            button { 
+                padding: 8px 16px; cursor: pointer; border: 1px solid #ddd; 
+                background: #fff; border-radius: 6px; font-size: 0.9em;
+                transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+            }
+            button:hover { background: #f8f9fa; border-color: #bbb; transform: translateY(-1px); }
+            button:active { transform: translateY(0); }
             #history-container {
-                margin-top: 20px;
-                width: 400px;
-                background: white;
-                padding: 15px;
-                border-radius: 8px;
-                border: 1px solid #ddd;
-                box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+                margin-top: 20px; width: 400px; background: white; padding: 15px;
+                border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             }
             #history {
-                height: 60px;
-                overflow-y: auto;
-                font-family: monospace;
-                font-size: 0.9em;
-                color: #555;
-                word-wrap: break-word;
+                height: 80px; overflow-y: auto; font-family: 'Courier New', Courier, monospace;
+                font-size: 0.9em; color: #444; line-height: 1.6; padding: 5px; background: #fafafa; border-radius: 4px;
             }
-            .history-label { font-weight: bold; margin-bottom: 5px; display: block; color: #888; text-transform: uppercase; font-size: 0.75em; }
-
-            button { 
-                padding: 10px 20px; 
-                cursor: pointer; 
-                border: 1px solid #ccc; 
-                background: #fff; 
-                border-radius: 4px;
-                transition: background 0.2s;
-            }
-            button:hover { background: #e9ecef; }
+            .history-label { font-weight: bold; margin-bottom: 8px; display: block; color: #666; font-size: 0.75em; letter-spacing: 1px; }
+            .btn-copy { margin-top: 10px; width: 100%; justify-content: center; font-size: 0.8em; color: #007bff; }
         </style>
     </head>
     <body>
-        <h1>Chess Board</h1>
         <div id="status">White's Turn</div>
         <div id="board"></div>
-
         <div class="controls">
-            <button onclick="flipBoard()">盤面を反転</button>
-            <button onclick="resetGame()">リセット</button>
+            <button onclick="undoMove()">↩ 待った</button>
+            <button onclick="flipBoard()">🔄 反転</button>
+            <button onclick="resetGame()">🗑 リセット</button>
         </div>
-
         <div id="history-container">
-            <span class="history-label">Move History</span>
+            <span class="history-label">MOVE HISTORY (PGN)</span>
             <div id="history">None</div>
+            <button class="btn-copy" onclick="copyPGN()">棋譜をコピー</button>
         </div>
-
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -89,31 +72,39 @@
                 let status = '';
                 let moveColor = (game.turn() === 'b') ? 'Black' : 'White';
                 if (game.in_checkmate()) {
-                    status = 'Game over! ' + moveColor + ' is in checkmate.';
+                    status = 'CHECKMATE! ' + moveColor + ' lost.';
                 } else if (game.in_draw()) {
-                    status = 'Game over! Draw.';
+                    status = 'DRAW.';
                 } else {
-                    status = moveColor + "'s Turn";
-                    if (game.in_check()) {
-                        status += ' (Check!)';
-                    }
+                    status = moveColor + "'s Turn" + (game.in_check() ? ' (Check!)' : '');
                 }
                 $status.html(status);
-                updateHistory();
+                $history.html(game.pgn() || "None");
+                $history.scrollTop($history[0].scrollHeight);
             }
 
-            function updateHistory() {
-                const pgn = game.pgn();
-                $history.html(pgn || "None");
-                $history.scrollTop($history[0].scrollHeight);
+            function undoMove() {
+                game.undo();
+                board.position(game.fen());
+                updateStatus();
             }
 
             function flipBoard() { board.flip(); }
 
             function resetGame() {
-                game.reset();
-                board.start();
-                updateStatus();
+                if(confirm("盤面をリセットしますか？")) {
+                    game.reset();
+                    board.start();
+                    updateStatus();
+                }
+            }
+
+            function copyPGN() {
+                const pgn = game.pgn();
+                if(!pgn) return;
+                navigator.clipboard.writeText(pgn).then(() => {
+                    alert("棋譜をクリップボードにコピーしました！");
+                });
             }
 
             board = Chessboard('board', {
@@ -123,7 +114,6 @@
                 onDrop: onDrop,
                 onSnapEnd: () => board.position(game.fen()),
             });
-
             updateStatus();
         </script>
     </body>
