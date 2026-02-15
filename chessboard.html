@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Chess Board</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <style>
+        body { 
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            margin-top: 50px; 
+            background-color: #f0f0f0;
+        }
+        #board { width: 400px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        #status { margin-bottom: 10px; font-weight: bold; font-size: 1.2em; }
+        .info { color: #666; font-size: 0.9em; margin-top: 10px; }
+        button { padding: 8px 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>Chess Board</h1>
+    <div id="status">White's Turn</div>
+    
+    <div id="board"></div>
+
+    <div class="info">駒をドラッグして動かせます。交互に操作してください。</div>
+    <button onclick="resetGame()">盤面をリセット</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <script>
+        let board = null;
+        let game = new Chess();
+        const $status = $('#status');
+
+        // 駒を動かし始めた時の処理
+        function onDragStart(source, piece, position, orientation) {
+            // ゲーム終了時、または動かそうとした駒が手番と異なる場合はキャンセル
+            if (game.game_over()) return false;
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+        }
+
+        // 駒を離した（ドロップした）時の処理
+        function onDrop(source, target) {
+            // 移動を試みる
+            const move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q' // 常にクイーンに昇格（簡易版）
+            });
+
+            // 不正な動きなら元の位置に戻す
+            if (move === null) return 'snapback';
+
+            updateStatus();
+        }
+
+        // 駒の動きが終わった後の盤面更新
+        function onSnapEnd() {
+            board.position(game.fen());
+        }
+
+        // 状態（手番やチェックなど）の更新
+        function updateStatus() {
+            let status = '';
+            let moveColor = (game.turn() === 'b') ? 'Black' : 'White';
+
+            if (game.in_checkmate()) {
+                status = 'Game over! ' + moveColor + ' is in checkmate.';
+            } else if (game.in_draw()) {
+                status = 'Game over! Draw.';
+            } else {
+                status = moveColor + "'s Turn";
+                if (game.in_check()) {
+                    status += ' (Check!)';
+                }
+            }
+            $status.html(status);
+        }
+
+        // 初期設定
+        const config = {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd
+        };
+        board = Chessboard('board', config);
+
+        // リセットボタン
+        function resetGame() {
+            game.reset();
+            board.start();
+            updateStatus();
+        }
+
+        updateStatus();
+    </script>
+</body>
+</html>
