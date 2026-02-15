@@ -11,10 +11,31 @@
                 flex-direction: column; 
                 align-items: center; 
                 background-color: #f8f9fa;
+                padding-bottom: 50px;
             }
             #board { width: 400px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-            #status { margin-bottom: 10px; font-weight: bold; font-size: 1.2em; color: #333; }
+            #status { margin-top: 20px; margin-bottom: 10px; font-weight: bold; font-size: 1.2em; color: #333; }
             .controls { margin-top: 10px; display: flex; gap: 10px; }
+            
+            #history-container {
+                margin-top: 20px;
+                width: 400px;
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                border: 1px solid #ddd;
+                box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+            }
+            #history {
+                height: 60px;
+                overflow-y: auto;
+                font-family: monospace;
+                font-size: 0.9em;
+                color: #555;
+                word-wrap: break-word;
+            }
+            .history-label { font-weight: bold; margin-bottom: 5px; display: block; color: #888; text-transform: uppercase; font-size: 0.75em; }
+
             button { 
                 padding: 10px 20px; 
                 cursor: pointer; 
@@ -24,17 +45,23 @@
                 transition: background 0.2s;
             }
             button:hover { background: #e9ecef; }
-            .info { color: #888; font-size: 0.85em; margin-top: 15px; }
         </style>
     </head>
     <body>
         <h1>Chess Board</h1>
         <div id="status">White's Turn</div>
         <div id="board"></div>
+
         <div class="controls">
             <button onclick="flipBoard()">盤面を反転</button>
             <button onclick="resetGame()">リセット</button>
         </div>
+
+        <div id="history-container">
+            <span class="history-label">Move History</span>
+            <div id="history">None</div>
+        </div>
+
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -42,6 +69,7 @@
             let board = null;
             let game = new Chess();
             const $status = $('#status');
+            const $history = $('#history');
 
             function onDragStart(source, piece, position, orientation) {
                 if (game.game_over()) return false;
@@ -52,11 +80,7 @@
             }
 
             function onDrop(source, target) {
-                const move = game.move({
-                    from: source,
-                    to: target,
-                    promotion: 'q'
-                });
+                const move = game.move({ from: source, to: target, promotion: 'q' });
                 if (move === null) return 'snapback';
                 updateStatus();
             }
@@ -75,6 +99,13 @@
                     }
                 }
                 $status.html(status);
+                updateHistory();
+            }
+
+            function updateHistory() {
+                const pgn = game.pgn();
+                $history.html(pgn || "None");
+                $history.scrollTop($history[0].scrollHeight);
             }
 
             function flipBoard() { board.flip(); }
@@ -92,6 +123,7 @@
                 onDrop: onDrop,
                 onSnapEnd: () => board.position(game.fen()),
             });
+
             updateStatus();
         </script>
     </body>
