@@ -5,196 +5,23 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>Simple Chess Board</title>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
-        <style>
-            html, body {
-                overflow: hidden;
-                width: 100%;
-                height: 100%;
-                margin: 0;
-                padding: 0;
-                touch-action: none;
-                background-color: #f0f2f5;
-            }
-            body {
-                font-family: -apple-system, sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                padding-top: 10px;
-            }
-            #board {
-                width: 95vw;
-                max-width: 400px;
-                margin-bottom: 10px;
-                box-shadow: 0 8px 25px rgba(0,0,0,0.2);
-                touch-action: none;
-            }
-            #status {
-                margin: 10px 0;
-                font-weight: bold;
-                background: #fff;
-                padding: 8px 20px;
-                border-radius: 20px;
-            }
-            .controls {
-                display: flex;
-                gap: 5px;
-                margin-bottom: 15px;
-            }
-            button {
-                padding: 10px 12px;
-                cursor: pointer;
-                border: 1px solid #ddd;
-                background: #fff;
-                border-radius: 8px;
-            }
-            #history-container {
-                width: 90vw;
-                max-width: 400px;
-                background: white;
-                padding: 12px;
-                border-radius: 8px;
-                border: 1px solid #ddd;
-            }
-            #history {
-                height: 60px;
-                overflow-y: auto;
-                font-family: monospace;
-                font-size: 0.8em;
-                padding: 8px;
-                background: #fafafa;
-            }
-            .highlight-white {
-                background-color: #f3f37a !important;
-            }
-            .highlight-black {
-                background-color: #d3d34a !important;
-            }
-            .possible-move::after {
-                content: "";
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                width: 25%;
-                height: 25%;
-                background: rgba(0,0,0,0.2);
-                border-radius: 50%;
-                transform: translate(-50%, -50%);
-                z-index: 10;
-                pointer-events: none;
-            }
-        </style>
+        <link rel="stylesheet" href="style.css">
     </head>
     <body>
         <div id="status">White's Turn</div>
         <div id="board"></div>
         <div class="controls">
-            <button onclick="undoMove()">↩ 待った</button>
-            <button onclick="flipBoard()">🔄 反転</button>
-            <button onclick="resetGame()">🗑 リセット</button>
+            <button id="btn-undo">↩ 待った</button>
+            <button id="btn-flip">🔄 反転</button>
+            <button id="btn-reset">🗑 リセット</button>
         </div>
-        <div id="history-container"><div id="history"></div></div>
+
+        <div id="history-container">
+            <div id="history"></div>
+        </div>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
-        <script type="module">
-            import { Chess } from "https://unpkg.com/chess.js@1.4.0/dist/esm/chess.js";
-            window.Chess = Chess;
-            let board = null;
-            let game = new Chess();
-            let selectedSquare = null;
-
-            function removeHighlights() {
-                $('#board .square-55d63').removeClass('highlight-white highlight-black possible-move');
-            }
-
-            function addHighlights(square) {
-                removeHighlights();
-                const moves = game.moves({ square: square, verbose: true });
-                if (moves.length === 0 && !game.get(square)) return;
-                const $square = $('#board .square-' + square);
-                $square.addClass($square.hasClass('white-1e1d7') ? 'highlight-white' : 'highlight-black');
-                moves.forEach(m => {
-                    $('#board .square-' + m.to).addClass('possible-move');
-                });
-            }
-
-            function updateStatus() {
-                let status = (game.turn() === 'b') ? 'Black' : 'White';
-                if (game.isCheckmate()) {
-                    status = 'CHECKMATE! ' + status + ' lost.';
-                } else if (game.isDraw()) {
-                    status = 'DRAW.';
-                } else {
-                    status += "'s Turn" + (game.isCheck() ? ' (Check!)' : '');
-                }
-                $('#status').html(status);
-                let pgn = game.pgn({ header: false }).replace(/\[.*?\]\s?/g, '').replace(/\s?(\*|1-0|0-1|1\/2-1\/2)$/, '');
-                $('#history').html(pgn || "None");
-            }
-
-            function onSquareClick(square) {
-                const piece = game.get(square);
-                if (selectedSquare) {
-                    try {
-                        const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
-                        if (move) {
-                            board.position(game.fen());
-                            selectedSquare = null;
-                            removeHighlights();
-                            updateStatus();
-                            return;
-                        }
-                    } catch (e) {}
-                    if (piece && piece.color === game.turn()) {
-                        selectedSquare = square;
-                        addHighlights(square);
-                    } else {
-                        selectedSquare = null;
-                        removeHighlights();
-                    }
-                } else if (piece && piece.color === game.turn()) {
-                    selectedSquare = square;
-                    addHighlights(square);
-                }
-            }
-
-            board = Chessboard('board', {
-                draggable: true,
-                position: 'start',
-                onDragStart: (source, piece) => {
-                    if (game.isGameOver()) return false;
-                    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-                        (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
-                    selectedSquare = source;
-                    addHighlights(source);
-                },
-                onDrop: (source, target) => {
-                    if (source === target) return;
-                    try {
-                        const move = game.move({ from: source, to: target, promotion: 'q' });
-                        if (move === null) return 'snapback';
-                        selectedSquare = null;
-                        updateStatus();
-                    } catch (e) { return 'snapback'; }
-                },
-                onSnapEnd: () => {
-                    board.position(game.fen());
-                    removeHighlights();
-                }
-            });
-            const boardEl = document.getElementById('board');
-            boardEl.addEventListener('touchstart', (e) => {
-                if (e.cancelable) e.preventDefault();
-            }, { passive: false });
-            $('#board').on('mousedown touchstart', '.square-55d63', function(e) {
-                const square = $(this).data('square');
-                onSquareClick(square);
-            });
-            updateStatus();
-            window.undoMove = () => { game.undo(); board.position(game.fen()); removeHighlights(); selectedSquare = null; updateStatus(); };
-            window.flipBoard = () => { board.flip(); removeHighlights(); selectedSquare = null; };
-            window.resetGame = () => { if(confirm("リセット？")) { game.reset(); board.start(); updateStatus(); removeHighlights(); selectedSquare = null; }};
-        </script>
+        <script type="module" src="chessboard.js"></script>
     </body>
 </html>
