@@ -41,12 +41,32 @@ function updateStatus() {
     $('#history').html(pgn || "None");
 }
 
+function getPromotionPiece() {
+    const choice = prompt("昇格する駒を選んでください (q: Queen, r: Rook, b: Bishop, n: Knight)", "q");
+    if (['q', 'r', 'b', 'n'].includes(choice.toLowerCase())) {
+        return choice.toLowerCase();
+    }
+    return 'q';
+}
+
 function onSquareClick(square) {
-    const piece = game.get(square);
+    const piece = game.get(selectedSquare);
 
     if (selectedSquare) {
+        let promotion = 'q';
+        if (piece && piece.type === 'p') {
+            if ((piece.color === 'w' && square[1] === '8') ||
+                (piece.color === 'b' && square[1] === '1')) {
+                promotion = getPromotionPiece();
+            }
+        }
+
         try {
-            const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+            const move = game.move({
+                from: selectedSquare,
+                to: square,
+                promotion: promotion
+            });
             if (move) {
                 board.position(game.fen());
                 selectedSquare = null;
@@ -69,39 +89,52 @@ function onSquareClick(square) {
     }
 }
 
+function onDrop(source, target) {
+    if (source === target) return;
+
+    const piece = game.get(source);
+    let promotion = 'q';
+
+    if (piece && piece.type === 'p') {
+        if ((piece.color === 'w' && target[1] === '8') ||
+            (piece.color === 'b' && target[1] === '1')) {
+            promotion = getPromotionPiece();
+        }
+    }
+
+    try {
+        const move = game.move({ from: source, to: target, promotion: promotion });
+        if (move === null) return 'snapback';
+        selectedSquare = null;
+        updateStatus();
+    } catch (e) {
+        return 'snapback';
+    }
+}
+
+function onDragStart(source, piece) {
+    if (game.isGameOver()) {
+        return false;
+    }
+    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+        (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+        return false;
+    }
+    selectedSquare = source;
+    addHighlights(source);
+}
+
+function onSnapEnd() {
+    board.position(game.fen());
+    removeHighlights();
+}
+
 const config = {
     draggable: true,
     position: 'start',
-    onDragStart: (source, piece) => {
-        if (game.isGameOver()) {
-            return false;
-        }
-        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-            (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-            return false;
-        }
-        selectedSquare = source;
-        addHighlights(source);
-    },
-    onDrop: (source, target) => {
-        if (source === target) {
-            return;
-        }
-        try {
-            const move = game.move({ from: source, to: target, promotion: 'q' });
-            if (move === null) {
-                return 'snapback';
-            }
-            selectedSquare = null;
-            updateStatus();
-        } catch (e) {
-            return 'snapback';
-        }
-    },
-    onSnapEnd: () => {
-        board.position(game.fen());
-        removeHighlights();
-    }
+    onDragStart: onDragStart,
+    onDrop: onDrop,
+    onSnapEnd: onSnapEnd
 };
 
 board = Chessboard('board', config);
