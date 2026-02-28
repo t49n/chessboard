@@ -3,22 +3,35 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>Simple Chess Board</title>
-        <link rel="icon" href="data:,">
+        <title>Stockfish Web Chess</title>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
         <link rel="stylesheet" href="style.css">
+        <script src="coi-serviceworker.js"></script>
     </head>
     <body>
-        <div id="status">White's Turn</div>
-        <div id="board"></div>
-        <div class="controls">
-            <button id="btn-undo">↩ 待った</button>
-            <button id="btn-flip">🔄 反転</button>
-            <button id="btn-reset">🗑 リセット</button>
-        </div>
+        <div class="main-layout">
+            <div id="status">対局準備中...</div>
+            
+            <div class="setup-controls">
+                <label>自分の色: </label>
+                <select id="player-color">
+                    <option value="w">白 (先手)</option>
+                    <option value="b">黒 (後手)</option>
+                </select>
+            </div>
 
-        <div id="history-container">
-            <div id="history"></div>
+            <div id="board"></div>
+
+            <div id="history-container">
+                <div id="history-title">棋譜（クリックでその局面に戻る）</div>
+                <div id="history"></div>
+            </div>
+
+            <div class="controls">
+                <button id="btn-undo">↩ 待った</button>
+                <button id="btn-flip">🔄 反転</button>
+                <button id="btn-reset">🗑 リセット</button>
+            </div>
         </div>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>

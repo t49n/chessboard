@@ -3,6 +3,30 @@ import { Chess } from "https://unpkg.com/chess.js@1.4.0/dist/esm/chess.js";
 let board = null;
 let game = new Chess();
 let selectedSquare = null;
+let playerColor = 'w'; 
+
+const stockfish = new Worker("./stockfish-18-lite.js");
+
+stockfish.onmessage = function(e) {
+    const line = e.data;
+    if (line.indexOf('bestmove') > -1) {
+        const move = line.split(' ')[1];
+        game.move({
+            from: move.substring(0, 2),
+            to: move.substring(2, 4),
+            promotion: 'q'
+        });
+        board.position(game.fen());
+        updateStatus();
+        renderHistory();
+    }
+};
+
+function engineMove() {
+    if (game.isGameOver()) return;
+    stockfish.postMessage("position fen " + game.fen());
+    stockfish.postMessage("go depth 12");
+}
 
 function removeHighlights() {
     $('#board .square-55d63').removeClass('highlight-white highlight-black possible-move');
@@ -11,10 +35,7 @@ function removeHighlights() {
 function addHighlights(square) {
     removeHighlights();
     const moves = game.moves({ square: square, verbose: true });
-
-    if (moves.length === 0 && !game.get(square)) {
-        return;
-    }
+    if (moves.length === 0 && !game.get(square)) return;
 
     const $square = $('#board .square-' + square);
     $square.addClass($square.hasClass('white-1e1d7') ? 'highlight-white' : 'highlight-black');
@@ -22,106 +43,64 @@ function addHighlights(square) {
 }
 
 function updateStatus() {
-    let status = (game.turn() === 'b') ? 'Black' : 'White';
+    let status = (game.turn() === 'b') ? '黒' : '白';
 
     if (game.isCheckmate()) {
-        status = 'CHECKMATE! ' + status + ' lost.';
+        status = '詰み！ ' + status + ' の負け';
     } else if (game.isDraw()) {
-        status = 'DRAW.';
+        status = '引き分け';
     } else {
-        status += "'s Turn" + (game.isCheck() ? ' (Check!)' : '');
+        status += " の手番" + (game.isCheck() ? ' (チェック!)' : '');
     }
-
     $('#status').html(status);
 
-    let pgn = game.pgn({ header: false })
-                  .replace(/\[.*?\]\s?/g, '')
-                  .replace(/\s?(\*|1-0|0-1|1\/2-1\/2)$/, '');
-
-    $('#history').html(pgn || "None");
+    if (!game.isGameOver() && game.turn() !== playerColor) {
+        stockfish.postMessage("position fen " + game.fen());
+        stockfish.postMessage("go depth 12");
+    }
 }
 
-function getPromotionPiece() {
-    const choice = prompt("昇格する駒を選んでください (q: Queen, r: Rook, b: Bishop, n: Knight)", "q");
-    if (['q', 'r', 'b', 'n'].includes(choice.toLowerCase())) {
-        return choice.toLowerCase();
+function renderHistory() {
+    const history = game.history({ verbose: true });
+    const $container = $('#history');
+    $container.empty();
+
+    history.forEach((move, index) => {
+        const $moveSpan = $('<span></span>')
+            .addClass('history-move')
+            .text((index + 1) + ". " + move.san)
+            .on('click', () => jumpToMove(index + 1));
+        $container.append($moveSpan);
+    });
+
+    const historyEl = document.getElementById('history');
+    if (historyEl) {
+        historyEl.scrollTop = historyEl.scrollHeight;
     }
-    return 'q';
 }
 
-function onSquareClick(square) {
-    const piece = game.get(selectedSquare);
-
-    if (selectedSquare) {
-        let promotion = 'q';
-        if (piece && piece.type === 'p') {
-            if ((piece.color === 'w' && square[1] === '8') ||
-                (piece.color === 'b' && square[1] === '1')) {
-                promotion = getPromotionPiece();
-            }
-        }
-
-        try {
-            const move = game.move({
-                from: selectedSquare,
-                to: square,
-                promotion: promotion
-            });
-            if (move) {
-                board.position(game.fen());
-                selectedSquare = null;
-                removeHighlights();
-                updateStatus();
-                return;
-            }
-        } catch (e) {}
-
-        if (piece && piece.color === game.turn()) {
-            selectedSquare = square;
-            addHighlights(square);
-        } else {
-            selectedSquare = null;
-            removeHighlights();
-        }
-    } else if (piece && piece.color === game.turn()) {
-        selectedSquare = square;
-        addHighlights(square);
+function jumpToMove(moveCount) {
+    const history = game.history();
+    game.reset();
+    for (let i = 0; i < moveCount; i++) {
+        game.move(history[i]);
     }
+    board.position(game.fen());
+    updateStatus();
+    renderHistory();
 }
 
 function onDrop(source, target) {
-    if (source === target) return;
-
-    const piece = game.get(source);
-    let promotion = 'q';
-
-    if (piece && piece.type === 'p') {
-        if ((piece.color === 'w' && target[1] === '8') ||
-            (piece.color === 'b' && target[1] === '1')) {
-            promotion = getPromotionPiece();
-        }
-    }
+    if (game.turn() !== playerColor) return 'snapback';
 
     try {
-        const move = game.move({ from: source, to: target, promotion: promotion });
+        const move = game.move({ from: source, to: target, promotion: 'q' });
         if (move === null) return 'snapback';
-        selectedSquare = null;
         updateStatus();
+        renderHistory();
     } catch (e) {
         return 'snapback';
     }
-}
-
-function onDragStart(source, piece) {
-    if (game.isGameOver()) {
-        return false;
-    }
-    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-        (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-        return false;
-    }
-    selectedSquare = source;
-    addHighlights(source);
 }
 
 function onSnapEnd() {
@@ -129,48 +108,41 @@ function onSnapEnd() {
     removeHighlights();
 }
 
-const config = {
+board = Chessboard('board', {
     draggable: true,
     position: 'start',
-    onDragStart: onDragStart,
+    onDragStart: (s, p) => !game.isGameOver() && p.startsWith(playerColor),
     onDrop: onDrop,
     onSnapEnd: onSnapEnd
-};
-
-board = Chessboard('board', config);
-
-const boardEl = document.getElementById('board');
-boardEl.addEventListener('touchstart', (e) => {
-    if (e.cancelable) e.preventDefault();
-}, { passive: false });
-
-$('#board').on('mousedown touchstart', '.square-55d63', function() {
-    const square = $(this).data('square');
-    onSquareClick(square);
 });
 
+$('#player-color').on('change', function() {
+    playerColor = $(this).val();
+    if (playerColor === 'b') board.orientation('black');
+    else board.orientation('white');
+    resetGame();
+});
+
+function resetGame() {
+    game.reset();
+    board.start();
+    if (playerColor === 'b') board.orientation('black');
+    updateStatus();
+    renderHistory();
+}
+
+document.getElementById('btn-reset').onclick = resetGame;
 document.getElementById('btn-undo').onclick = () => {
     game.undo();
+    game.undo();
     board.position(game.fen());
-    removeHighlights();
-    selectedSquare = null;
     updateStatus();
+    renderHistory();
 };
 
-document.getElementById('btn-flip').onclick = () => {
-    board.flip();
-    removeHighlights();
-    selectedSquare = null;
-};
-
-document.getElementById('btn-reset').onclick = () => {
-    if (confirm("リセットしますか？")) {
-        game.reset();
-        board.start();
-        updateStatus();
-        removeHighlights();
-        selectedSquare = null;
-    }
-};
+document.getElementById('btn-flip').onclick = () => board.flip();
 
 updateStatus();
+stockfish.postMessage("uci");
+stockfish.postMessage("ucinewgame");
+stockfish.postMessage("isready");
