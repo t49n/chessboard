@@ -4,6 +4,7 @@ let board = null;
 let game = new Chess();
 let selectedSquare = null;
 let playerColor = 'w'; 
+let engineStartTime = 0;
 
 const stockfish = new Worker("./stockfish-18-lite.js");
 
@@ -11,19 +12,30 @@ stockfish.onmessage = function(e) {
     const line = e.data;
     if (line.indexOf('bestmove') > -1) {
         const move = line.split(' ')[1];
-        game.move({
-            from: move.substring(0, 2),
-            to: move.substring(2, 4),
-            promotion: 'q'
-        });
-        board.position(game.fen());
-        updateStatus();
-        renderHistory();
+
+        const now = Date.now();
+        const timePassed = now - engineStartTime;
+        const minWait = 680;
+        const delay = Math.max(0, minWait - timePassed);
+
+        setTimeout(() => {
+            game.move({
+                from: move.substring(0, 2),
+                to: move.substring(2, 4),
+                promotion: 'q'
+            });
+            board.position(game.fen());
+            updateStatus();
+            renderHistory();
+        }, delay);
     }
 };
 
 function engineMove() {
     if (game.isGameOver()) return;
+
+    engineStartTime = Date.now();
+
     stockfish.postMessage("position fen " + game.fen());
     stockfish.postMessage("go depth 12");
 }
@@ -106,6 +118,10 @@ function onDrop(source, target) {
 function onSnapEnd() {
     board.position(game.fen());
     removeHighlights();
+
+    if (game.turn() !== playerColor) {
+        engineMove();
+    }
 }
 
 board = Chessboard('board', {
